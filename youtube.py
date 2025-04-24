@@ -97,7 +97,13 @@ class Youtube:
 
         url = urllib.parse.urljoin(self.base_url, url)
         kwargs.setdefault("timeout", 60)
+
         res = self._sess.request(method.upper(), url, *args, **kwargs)
+        if res.status_code == 401 and isinstance(self._auth, auth.OAuth2Authenticator):
+            logging.warning("Error 401: %s", res.text)
+            logging.info("Trying to generate a new access token")
+            self._auth.refresh_access_token(force=True)
+            res = self._sess.request(method.upper(), url, *args, **kwargs)
 
         if raise_:
             res.raise_for_status()
