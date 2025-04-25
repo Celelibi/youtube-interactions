@@ -130,14 +130,14 @@ def main():
                               disable_existing_loggers=False)
 
     parser = argparse.ArgumentParser(description="Youtube Interactions")
-    parser.add_argument("cfgfile", metavar="configfile", help="Fichier de configuration")
+    parser.add_argument("--config", "-c", metavar="configfile", required=True, help="Fichier de configuration")
     parser.add_argument("--browser", "-b", help="Navigateur à lancer pour l'authentification. (Environnement BROWSER)")
     parser.add_argument("--verbose", "-v", action="count", default=0, help="Augmente le niveau de verbosité")
     parser.add_argument("--quiet", "-q", action="count", default=0, help="Diminue le niveau de verbosité")
 
     args = parser.parse_args()
 
-    configpath = args.cfgfile
+    configpath = args.config
     browser = args.browser
     verbose = args.verbose - args.quiet
 
