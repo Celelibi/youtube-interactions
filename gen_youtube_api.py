@@ -72,37 +72,138 @@ class OnlyRepr:
 
 
 
-def pretty_str(obj, indent_pad="    ", level=0, indent_first_line=False):
-    """This function exists because the module pprint produce a shitty format
-    and shouldn't even exist."""
+def _pretty_str_str(obj, width=80, indent_pad="    ", level=0,
+                    first_line_len=None, cont_str=" \\", cont_pad=""):
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
+    sp = indent_pad * level
+    r = ""
+    if first_line_len is None:
+        r += sp
+        first_line_len = len(sp)
+
+    obj_repr = repr(obj)
+    rtmp = r + obj_repr
+    if len(rtmp) <= width - first_line_len or not isinstance(obj, (str, bytes, bytearray)):
+        return rtmp
+
+    # These types are decoorated with some quote and other things.
+    # And all end with the cont_str string.
+    decor_len = len(repr(type(obj)())) + len(cont_str)
+
+    l0 = wrap(obj[:width], width - first_line_len - decor_len)[0]
+    r += repr(l0)
+    r += cont_str + "\n"
+    lines = wrap(obj[len(l0):].lstrip(), width - len(sp) - decor_len - len(cont_pad))
+    r += (cont_str + "\n").join(sp + cont_pad + repr(l) for l in lines)
+    return r
+
+
+
+def _pretty_str_dict(obj, width=80, indent_pad="    ", level=0, first_line_len=None):
+    sp = indent_pad * level
+    r = ""
+    if first_line_len is None:
+        r += sp
+        first_line_len = len(sp)
+
+    r += "{\n"
+
+    for k, v in obj.items():
+        r += pretty_str(k, width, indent_pad, level + 1, cont_str="",
+                        cont_pad=indent_pad)
+        r += ": "
+
+        last_line_len = len(r.rsplit("\n", maxsplit=1)[-1])
+        cont_pad_len = last_line_len - first_line_len - len(indent_pad)
+
+        r += pretty_str(v, width, indent_pad, level + 1, first_line_len=last_line_len,
+                        cont_str="", cont_pad=" " * cont_pad_len)
+        r += ",\n"
+
+    r += sp + "}"
+
+    return r
+
+
+
+def _pretty_str_list(obj, width=80, indent_pad="    ", level=0, first_line_len=None):
+    if isinstance(obj, list):
+        op, cl = "[", "]"
+    elif isinstance(obj, tuple):
+        op, cl = "(", ")"
+    else:
+        raise TypeError("_pretty_str_list can't pretty print a {type(obj)}")
 
     sp = indent_pad * level
     r = ""
-    if indent_first_line:
+    if first_line_len is None:
         r += sp
-    if isinstance(obj, (str, int, float, complex, bytes, bytearray)):
-        return r + repr(obj)
+        first_line_len = len(sp)
 
-    if isinstance(obj, dict):
-        r += "{\n"
-        for k, v in obj.items():
-            r += pretty_str(k, indent_pad, level + 1, indent_first_line=True)
-            r += ": "
-            r += pretty_str(v, indent_pad, level + 1, indent_first_line=False)
-            r += ",\n"
-        r += sp + "}"
-        return r
+    r += op
 
-    if isinstance(obj, list):
-        r += "["
-        for v in obj:
-            r += pretty_str(v, indent_pad, level + 1, indent_first_line=False)
-            r += ", "
-        r = r.removesuffix(", ")
-        r += "]"
-        return r
+    for v in obj:
+        last_line_len = len(r.rsplit("\n", maxsplit=1)[-1])
+        if "\n" not in r:
+            last_line_len += first_line_len
+        vstr = pretty_str(v, width, indent_pad, level, first_line_len=last_line_len,
+                        cont_str="")
+
+        # If the element v is on several lines, try again on its own line
+        if "\n" in vstr:
+            r = r.removesuffix(" ") + "\n"
+            vstr = pretty_str(v, width, indent_pad, level + 1, cont_str="")
+        r += vstr
+        r += ", "
+
+    r = r.removesuffix(", ") + cl
+
+    return r
+
+
+
+def _pretty_str_default(obj, indent_pad="    ", level=0, first_line_len=None):
+    sp = indent_pad * level
+    r = ""
+    if first_line_len is None:
+        r += sp
+        first_line_len = len(sp)
 
     return r + repr(obj)
+
+
+
+def pretty_str(obj, width=80, indent_pad="    ", level=0, first_line_len=None,
+               cont_str=" \\", cont_pad=""):
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
+    """This function exists because the module pprint produce a shitty format
+    and shouldn't even exist.
+    Note that the wraping of long strings to fit some width is not perfect and
+    will miss the backslash-escaped characters for instance.
+
+    Arguments are:
+    - obj: the object to return the pretty string for
+    - width: how wide the text should be, currently, only str and bytes are split
+    - indent_pad: the indentation string, usually 4 spaces or a tab
+    - level: the current indentation level
+    - first_line_len: if the returnd string isn't pasted at the beginning of a
+      line, this should be the length of the string already existing, or None
+      if the first line should be indented
+    - cont_str: continuation string to use when wraping long strings, usually a
+      backslash or an empty string if the context (inside parentheses for
+      instance) allows juxtaposed strings
+    - cont_pad: string for additional indentation of continuation."""
+
+    if isinstance(obj, (str, int, float, complex, bytes, bytearray)):
+        return _pretty_str_str(obj, width, indent_pad, level, first_line_len, cont_str, cont_pad)
+
+    if isinstance(obj, dict):
+        return _pretty_str_dict(obj, width, indent_pad, level, first_line_len)
+
+    if isinstance(obj, (list, tuple)):
+        return _pretty_str_list(obj, width, indent_pad, level, first_line_len)
+
+    return _pretty_str_default(obj, indent_pad, level, first_line_len)
 
 
 
@@ -344,7 +445,8 @@ def main():
         print(file=fp)
         print(file=fp)
         print(file=fp)
-        print("    api_help =", pretty_str(api_help, level=1), file=fp)
+        s = "    api_help = "
+        print(s + pretty_str(api_help, level=1, first_line_len=len(s)), file=fp)
 
     return 0
 
