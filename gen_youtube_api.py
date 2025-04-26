@@ -59,6 +59,53 @@ def str_rindex_set(haystack, needles, start=None, end=None, /, **kwargs):
 
 
 
+class OnlyRepr:
+    # pylint: disable=too-few-public-methods
+    """This class only implement __repr__ and is used for pretty_str below. It
+    allows to explicitly set the repr(...) of an object."""
+
+    def __init__(self, s):
+        self.repr_str = s
+
+    def __repr__(self):
+        return self.repr_str
+
+
+
+def pretty_str(obj, indent_pad="    ", level=0, indent_first_line=False):
+    """This function exists because the module pprint produce a shitty format
+    and shouldn't even exist."""
+
+    sp = indent_pad * level
+    r = ""
+    if indent_first_line:
+        r += sp
+    if isinstance(obj, (str, int, float, complex, bytes, bytearray)):
+        return r + repr(obj)
+
+    if isinstance(obj, dict):
+        r += "{\n"
+        for k, v in obj.items():
+            r += pretty_str(k, indent_pad, level + 1, indent_first_line=True)
+            r += ": "
+            r += pretty_str(v, indent_pad, level + 1, indent_first_line=False)
+            r += ",\n"
+        r += sp + "}"
+        return r
+
+    if isinstance(obj, list):
+        r += "["
+        for v in obj:
+            r += pretty_str(v, indent_pad, level + 1, indent_first_line=False)
+            r += ", "
+        r = r.removesuffix(", ")
+        r += "]"
+        return r
+
+    return r + repr(obj)
+
+
+
 def wrap(text, width=80, seps=" "):
     """Wraps a text string to `width' columns on separators `seps'."""
 
@@ -166,6 +213,28 @@ def gen_method_doc(meth, named_args, optional_args, params_style_conv):
 
 
 
+def gen_api_help(meth, named_args, optional_args, params_style_conv):
+    """Generate the dict describing the method and its arguments."""
+
+    def param_help(params, name):
+        n = params_style_conv.get(name, name)
+        p = params[n]
+        return {
+            "name": name,
+            "type": p["type"],
+            "help": p.get("description")
+        }
+
+    params = meth["parameters"]
+    retval = {"help": meth["description"]}
+    retval["required_params"] = [param_help(params, p) for p in named_args]
+    retval["optional_params"] = [param_help(params, p) for p in optional_args]
+    retval["method"] = NotImplemented
+
+    return retval
+
+
+
 def gen_code_for_method(meth, is_first, fp):
     """Generate the code for a method as described in the JSON provided by the
     discovery URL."""
@@ -208,6 +277,8 @@ def gen_code_for_method(meth, is_first, fp):
 
     # Build the docstring
     doc = gen_method_doc(meth, named_args, optional_args, params_style_conv)
+    api_help = gen_api_help(meth, named_args, optional_args, params_style_conv)
+    api_help["method"] = OnlyRepr(meth_name)
 
     # Finally, output the code
     print(file=fp)
@@ -231,6 +302,9 @@ def gen_code_for_method(meth, is_first, fp):
         print(f"        return self.{method}(path, params=kwargs)", file=fp)
     else:
         print(f"        return self.{method}({path!r}, params=kwargs, **request_args)", file=fp)
+
+    # Return informations to build the API help dict
+    return meth_name, api_help
 
 
 
@@ -256,6 +330,7 @@ def main():
         print("    # pylint: disable=too-many-public-methods,too-many-lines", file=fp)
         print(format_docstr(f'{desc["title"]}\n\n{desc["description"]}'), file=fp)
 
+        api_help = {}
         first = True
         for resname in sorted(desc["resources"]):
             res = desc["resources"][resname]
@@ -264,10 +339,17 @@ def main():
                 continue
 
             for method in res["methods"].values():
-                gen_code_for_method(method, first, fp)
+                name, api_meth_help = gen_code_for_method(method, first, fp)
+                api_help[name] = api_meth_help
                 first = False
 
+        print(file=fp)
+        print(file=fp)
+        print(file=fp)
+        print("    api_help =", pretty_str(api_help, level=1), file=fp)
+
     return 0
+
 
 
 if __name__ == "__main__":
