@@ -11,7 +11,8 @@ import sys
 import youtube
 
 
-SELFPATH = os.path.dirname(os.path.realpath(sys.argv[0]))
+
+SELFPATH = os.path.dirname(os.path.realpath(sys.modules[__name__].__file__))
 
 
 
