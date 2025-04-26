@@ -16,10 +16,20 @@ import requests
 
 import auth
 
+try:
+    import generated_youtube_mixin
+except ImportError:
+    import os
+    import subprocess
+    import sys
+    selfpath = os.path.dirname(os.path.realpath(sys.modules[__name__].__file__))
+    progpath = os.path.join(selfpath, "gen_youtube_api.py")
+    subprocess.run([progpath, "generated_youtube_mixin.py"], check=True)
+    import generated_youtube_mixin
 
 
 
-class YouTube:
+class YouTube(generated_youtube_mixin.YouTubeMixin):
     """
     Implements the authentication against the Youtube API and allows to perform
     some queries to it.
