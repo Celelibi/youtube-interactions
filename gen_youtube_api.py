@@ -126,7 +126,7 @@ def _pretty_str_dict(obj, width=80, indent_pad="    ", level=0, first_line_len=N
 
 
 
-def _pretty_str_list(obj, width=80, indent_pad="    ", level=0, first_line_len=None):
+def _pretty_str_list_oneline(obj, width=80, indent_pad="    ", level=0, first_line_len=None):
     if isinstance(obj, list):
         op, cl = "[", "]"
     elif isinstance(obj, tuple):
@@ -149,10 +149,10 @@ def _pretty_str_list(obj, width=80, indent_pad="    ", level=0, first_line_len=N
         vstr = pretty_str(v, width, indent_pad, level, first_line_len=last_line_len,
                         cont_str="")
 
-        # If the element v is on several lines, try again on its own line
+        # If the element v is on several lines, try again with one element per line
         if "\n" in vstr:
-            r = r.removesuffix(" ") + "\n"
-            vstr = pretty_str(v, width, indent_pad, level + 1, cont_str="")
+            return None
+
         r += vstr
         r += ", "
 
@@ -162,12 +162,37 @@ def _pretty_str_list(obj, width=80, indent_pad="    ", level=0, first_line_len=N
 
 
 
-def _pretty_str_default(obj, indent_pad="    ", level=0, first_line_len=None):
+def _pretty_str_list_multiline(obj, width=80, indent_pad="    ", level=0, first_line_len=None):
+    if isinstance(obj, list):
+        op, cl = "[", "]"
+    elif isinstance(obj, tuple):
+        op, cl = "(", ")"
+    else:
+        raise TypeError("_pretty_str_list can't pretty print a {type(obj)}")
+
     sp = indent_pad * level
     r = ""
     if first_line_len is None:
         r += sp
         first_line_len = len(sp)
+
+    r += op + "\n"
+
+    for v in obj:
+        r += pretty_str(v, width, indent_pad, level + 1, cont_str="")
+        r += ",\n"
+
+    r = r + sp + cl
+    return r
+
+
+
+def _pretty_str_default(obj, indent_pad="    ", level=0, first_line_len=None):
+    # Passer sp et r, et virer indent_pad et level
+    sp = indent_pad * level
+    r = ""
+    if first_line_len is None:
+        r += sp
 
     return r + repr(obj)
 
@@ -201,7 +226,10 @@ def pretty_str(obj, width=80, indent_pad="    ", level=0, first_line_len=None,
         return _pretty_str_dict(obj, width, indent_pad, level, first_line_len)
 
     if isinstance(obj, (list, tuple)):
-        return _pretty_str_list(obj, width, indent_pad, level, first_line_len)
+        s = _pretty_str_list_oneline(obj, width, indent_pad, level, first_line_len)
+        if s is None:
+            s = _pretty_str_list_multiline(obj, width, indent_pad, level, first_line_len)
+        return s
 
     return _pretty_str_default(obj, indent_pad, level, first_line_len)
 
