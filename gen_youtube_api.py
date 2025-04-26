@@ -185,29 +185,27 @@ def camel_case_to_python(camel):
 
 
 
-def gen_method_doc(meth, named_args, optional_args, params_style_conv):
+def gen_method_doc(api_help):
     """Generate the docstring of a method."""
 
-    params = meth["parameters"]
+    def params_help(params):
+        ret = ""
+        for p in params:
+            if p["help"] is not None:
+                ret += f"- {p['name']}: {p['type']}: {p['help']}\n"
+            else:
+                ret += f"- {p['name']}: {p['type']}\n"
+        return ret
 
-    doc = meth["description"] + "\n\n"
-    if named_args:
-        doc += "Required arguments:\n"
-    for n in named_args:
-        o = params_style_conv.get(n, n)
-        if "description" in params[o]:
-            doc += f"- {n}: {params[o]['type']}: {params[o]['description']}\n"
-        else:
-            doc += f"- {n}: {params[o]['type']}\n"
+    doc = api_help["help"] + "\n"
 
-    if optional_args:
-        doc += "Optional arguments:\n"
-    for n in optional_args:
-        o = params_style_conv.get(n, n)
-        if "description" in params[o]:
-            doc += f"- {n}: {params[o]['type']}: {params[o]['description']}\n"
-        else:
-            doc += f"- {n}: {params[o]['type']}\n"
+    if api_help["required_params"]:
+        doc += "\nRequired arguments:\n"
+        doc += params_help(api_help["required_params"])
+
+    if api_help["optional_params"]:
+        doc += "\nOptional arguments:\n"
+        doc += params_help(api_help["optional_params"])
 
     return format_docstr(doc, levels=2)
 
@@ -276,9 +274,9 @@ def gen_code_for_method(meth, is_first, fp):
     path = meth["flatPath"].removeprefix("youtube/v3/")
 
     # Build the docstring
-    doc = gen_method_doc(meth, named_args, optional_args, params_style_conv)
     api_help = gen_api_help(meth, named_args, optional_args, params_style_conv)
     api_help["method"] = OnlyRepr(meth_name)
+    doc = gen_method_doc(api_help)
 
     # Finally, output the code
     print(file=fp)
