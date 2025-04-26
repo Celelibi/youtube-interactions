@@ -163,7 +163,7 @@ def main():
     elif creds_type == "oauth2":
         client_id, client_secret, creds = preprocess_oauth2_token(creds)
 
-    yt = youtube.Youtube(api_key=key, client_id=client_id, client_secret=client_secret, creds=creds)
+    yt = youtube.YouTube(api_key=key, client_id=client_id, client_secret=client_secret, creds=creds)
     config_write(configpath, yt.credentials)
 
 

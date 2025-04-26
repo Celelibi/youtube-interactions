@@ -18,7 +18,8 @@ import auth
 
 
 
-class Youtube:
+
+class YouTube:
     """
     Implements the authentication against the Youtube API and allows to perform
     some queries to it.
