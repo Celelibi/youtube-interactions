@@ -465,7 +465,8 @@ def main():
                 print(f"Skipping the weirdly formatted resource {resname}:", res, file=sys.stderr)
                 continue
 
-            for method in res["methods"].values():
+            for methname in sorted(res["methods"]):
+                method = res["methods"][methname]
                 name, api_meth_help = gen_code_for_method(method, first, fp)
                 api_help[name] = api_meth_help
                 first = False
