@@ -303,12 +303,13 @@ def format_docstr(s, levels=1):
 
 
 
-def camel_case_to_python(camel):
+def camel_case_to_python(camel, escape_builtins=True):
     """Convert a camelCase name into a snake_case name. Also prevent overriding
     some python builtin by appending an underscore."""
 
     newname = re.sub(r"([a-z])([A-Z]+)", r"\1_\2", camel).lower()
-    if hasattr(__builtins__, newname):
+
+    if escape_builtins and hasattr(__builtins__, newname):
         newname += "_"
     return newname
 
@@ -357,6 +358,9 @@ def gen_api_help(meth, named_args, optional_args, params_style_conv):
     retval["required_params"] = [param_help(params, p) for p in named_args]
     retval["optional_params"] = [param_help(params, p) for p in optional_args]
     retval["method"] = NotImplemented
+
+    # Fully-Qualified Method Name. :]
+    retval["FQMN"] = [camel_case_to_python(n, False) for n in meth["id"].split(".")]
 
     return retval
 
