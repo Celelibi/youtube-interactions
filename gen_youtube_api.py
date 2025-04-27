@@ -90,10 +90,10 @@ def _pretty_str_str(obj, width=80, indent_pad="    ", level=0,
     # And all end with the cont_str string.
     decor_len = len(repr(type(obj)())) + len(cont_str)
 
-    l0 = wrap(obj[:width], width - first_line_len - decor_len)[0]
+    l0 = wrap(obj[:width], width - first_line_len - decor_len, strip=False)[0]
     r += repr(l0)
     r += cont_str + "\n"
-    lines = wrap(obj[len(l0):].lstrip(), width - len(sp) - decor_len - len(cont_pad))
+    lines = wrap(obj[len(l0):], width - len(sp) - decor_len - len(cont_pad), strip=False)
     r += (cont_str + "\n").join(sp + cont_pad + repr(l) for l in lines)
     return r
 
@@ -235,26 +235,33 @@ def pretty_str(obj, width=80, indent_pad="    ", level=0, first_line_len=None,
 
 
 
-def wrap(text, width=80, seps=" "):
+def wrap(text, width=80, seps=" ", strip=True):
     """Wraps a text string to `width' columns on separators `seps'."""
 
     if width < 1:
         raise ValueError(f"Invalid width {width}, must be >= 1")
 
-    # This helps with special cases:
-    # - empty string should return [''], not []
-    # - when the remaining text is shorter than `width', we want to "split" at
-    #   the very end of the text.
-    text += seps[0]
+    if len(text) == 0:
+        return [""]
 
     ret = []
     while text:
-        idx = str_rindex_set(text, seps, 0, width, default=None)
-        if idx is None:
-            idx = str_index_set(text, seps, width, default=len(text))
+        if len(text) <= width:
+            idx = len(text)
+        else:
+            idx = str_rindex_set(text, seps, 0, width - 1, default=None)
+            if idx is None:
+                idx = str_index_set(text, seps, width - 1, default=len(text))
 
-        ret.append(text[:idx].rstrip(seps))
-        text = text[idx:].lstrip(seps)
+            # Keep the separator at the end of the line
+            idx += 1
+
+        ret.append(text[:idx])
+        text = text[idx:]
+
+        if strip:
+            ret[-1] = ret[-1].rstrip(seps)
+            text = text.lstrip(seps)
 
     return ret
 
