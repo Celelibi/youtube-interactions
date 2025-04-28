@@ -149,3 +149,20 @@ class YouTube(generated_youtube_mixin.YouTubeMixin):
         """Perform a GET request."""
         return self.request("GET", *args, **kwargs)
 
+
+
+    def post(self, *args, **kwargs):
+        """Perform a POST request."""
+        return self.request("POST", *args, **kwargs)
+
+
+
+    def put(self, *args, **kwargs):
+        """Perform a PUT request."""
+        return self.request("PUT", *args, **kwargs)
+
+
+
+    def delete(self, *args, **kwargs):
+        """Perform a DELETE request."""
+        return self.request("DELETE", *args, **kwargs)
