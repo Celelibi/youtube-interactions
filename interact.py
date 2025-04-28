@@ -125,6 +125,16 @@ def config_write(filename, creds):
 
 
 
+def run_command(yt, args):
+    """Run a command as given by the command line arguments."""
+    meth = args.meth
+    params = meth["required_params"] + meth["optional_params"]
+    kwargs = {p["name"]: v for p in params if (v := getattr(args, p["name"])) is not None}
+    res = meth["method"](yt, **kwargs)
+    print(res)
+
+
+
 class ArgparseBoolAction(argparse.Action):
     """Action class for booleans.
 
@@ -266,6 +276,12 @@ def main():
 
     yt = youtube.YouTube(api_key=key, client_id=client_id, client_secret=client_secret, creds=creds)
     config_write(configpath, yt.credentials)
+
+    if hasattr(args, "meth"):
+        run_command(yt, args)
+        config_write(configpath, yt.credentials)
+    else:
+        print("No method to call provided")
 
 
 
