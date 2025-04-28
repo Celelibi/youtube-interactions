@@ -149,15 +149,3 @@ class YouTube(generated_youtube_mixin.YouTubeMixin):
         """Perform a GET request."""
         return self.request("GET", *args, **kwargs)
 
-    def video_infos(self, **kwargs):
-        """Get the infos about a video."""
-        return self.get("videos", params=kwargs)
-
-    def subscriptions(self, **kwargs):
-        """Get the subscriptions."""
-        return self.get("subscriptions", params=kwargs)
-
-    def my_subscriptions(self, **kwargs):
-        """Get the subscription of the authenticated account."""
-        kwargs["mine"] = "true"
-        return self.subscriptions(**kwargs)
