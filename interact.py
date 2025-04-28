@@ -6,6 +6,7 @@ import locale
 import logging
 import logging.config
 import os
+import re
 import sys
 
 import youtube
@@ -124,20 +125,119 @@ def config_write(filename, creds):
 
 
 
+class ArgparseBoolAction(argparse.Action):
+    """Action class for booleans.
+
+    From a --name option it generates --no-name. It handles all the standard
+    values assigmnets y, yes, true, 1 for True, and n, no, false, 0 for False.
+    If no value is given, a True value is assumed.
+    If the --no-* argument is used, the truth of the value is flipped."""
+
+    pos_values = ["y", "yes", "true", "1"]
+    neg_values = ["n", "no", "false", "0"]
+
+    def __init__(self, option_strings, *args, **kwargs):
+        #kwargs.setdefault("type", bool)
+        kwargs.setdefault("choices", self.pos_values + self.neg_values)
+        kwargs.setdefault("nargs", "?")
+        kwargs.setdefault("const", True)
+
+        if kwargs["nargs"] != "?":
+            raise ValueError("nargs with ArgparseBoolAction must be \"?\"")
+
+        neg_options = ["--no-" + o.removeprefix("--") for o in option_strings if o.startswith("--")]
+        option_strings += neg_options
+        self.neg_option_strings = neg_options
+        super().__init__(option_strings, *args, **kwargs)
+
+
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        if values in self.pos_values:
+            values = True
+        elif values in self.neg_values:
+            values = False
+        elif values is None:
+            values = self.const
+        elif values is self.const or values is self.default:
+            pass
+        else:
+            raise ValueError(f"ArgparseBoolAction: unrecognized value {values!r}")
+
+        if option_string in self.neg_option_strings:
+            values = not values
+
+        if option_string in self.option_strings:
+            setattr(namespace, self.dest, values)
+
+
+
+def camel_case_to_argument(camel):
+    """Turn a camelCase name into a --kebab-case-option."""
+    newname = re.sub(r"([a-z])([A-Z]+)", r"\1-\2", camel).lower()
+    return "--" + newname
+
+
+
+def _add_argument(parser, param, required):
+    n = camel_case_to_argument(param["originalName"])
+    action = ArgparseBoolAction if param["type"] == "boolean" else "store"
+
+    if param["repeated"]:
+        if action != "store":
+            raise ValueError(f"Can't parse repeated argument of type {param['type']}")
+        action = "append"
+
+    parser.add_argument(n, action=action, dest=param["name"], required=required,
+                          deprecated=param["deprecated"], help=param["help"])
+
+
+
+def parse_arguments():
+    """Parse sys.argv and return a Namespace object."""
+
+    api = youtube.YouTube.api_help
+
+    parser = argparse.ArgumentParser(description="Youtube Interactions")
+    parser.add_argument("--config", "-c", metavar="configfile", required=True,
+                        help="Fichier de configuration")
+    parser.add_argument("--browser", "-b",
+                        help="Navigateur à lancer pour l'authentification. (Environnement BROWSER)")
+    parser.add_argument("--verbose", "-v", action="count", default=0,
+                        help="Augmente le niveau de verbosité")
+    parser.add_argument("--quiet", "-q", action="count", default=0,
+                        help="Diminue le niveau de verbosité")
+
+    subparsers = parser.add_subparsers(title="Ressources", help="Ressource sur laquelle agir")
+    for resname in sorted(set(m["FQMN"][1] for m in api.values())):
+        dash_resname = resname.replace("_", "-")
+        resparser = subparsers.add_parser(dash_resname).add_subparsers()
+
+        for methname in sorted(set(n for n, m in api.items() if m["FQMN"][1] == resname)):
+            meth = api[methname]
+            dash_methname = meth["FQMN"][2].replace("_", "-")
+            methparser = resparser.add_parser(dash_methname, help=meth["help"])
+            methparser.set_defaults(meth=meth)
+
+            required = methparser.add_argument_group("Required arguments")
+            optional = methparser.add_argument_group("Optional arguments")
+
+            for p in meth["required_params"]:
+                _add_argument(required, p, True)
+            for p in meth["optional_params"]:
+                _add_argument(optional, p, False)
+
+    return parser.parse_args()
+
+
+
 def main():
     # pylint: disable=missing-function-docstring
     locale.setlocale(locale.LC_ALL, '')
     logging.config.fileConfig(os.path.join(SELFPATH, "logconf.ini"),
                               disable_existing_loggers=False)
 
-    parser = argparse.ArgumentParser(description="Youtube Interactions")
-    parser.add_argument("--config", "-c", metavar="configfile", required=True, help="Fichier de configuration")
-    parser.add_argument("--browser", "-b", help="Navigateur à lancer pour l'authentification. (Environnement BROWSER)")
-    parser.add_argument("--verbose", "-v", action="count", default=0, help="Augmente le niveau de verbosité")
-    parser.add_argument("--quiet", "-q", action="count", default=0, help="Diminue le niveau de verbosité")
-
-    args = parser.parse_args()
-
+    args = parse_arguments()
     configpath = args.config
     browser = args.browser
     verbose = args.verbose - args.quiet
