@@ -365,6 +365,7 @@ def gen_api_help(meth, named_args, optional_args, params_style_conv):
         n = params_style_conv.get(name, name)
         p = params[n]
         return {
+            "originalName": n,
             "name": name,
             "type": p["type"],
             "help": p.get("description"),
