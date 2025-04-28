@@ -29,6 +29,16 @@ except ImportError:
 
 
 
+class APIError(Exception):
+    """Thrown when an API answered with an error."""
+
+    def __init__(self, msg, request=None, response=None):
+        super().__init__(msg)
+        self.request = request
+        self.response = response
+
+
+
 class YouTube(generated_youtube_mixin.YouTubeMixin):
     """
     Implements the authentication against the Youtube API and allows to perform
@@ -117,7 +127,16 @@ class YouTube(generated_youtube_mixin.YouTubeMixin):
             res = self._sess.request(method.upper(), url, *args, **kwargs)
 
         if raise_:
-            res.raise_for_status()
+            try:
+                res.raise_for_status()
+            except Exception as e:
+                # We're on a no-fail path
+                try:
+                    msg = res.json()["error"]["message"]
+                except:
+                    msg = f"server response [{res.status_code}]: {res.text}"
+
+                raise APIError(msg, response=e.response, request=e.request) from e
 
         if decode_json:
             return res.json()
