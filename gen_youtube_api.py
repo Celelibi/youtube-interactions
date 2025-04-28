@@ -370,6 +370,7 @@ def gen_api_help(meth, named_args, optional_args, params_style_conv):
             "type": p["type"],
             "help": p.get("description"),
             "deprecated": p.get("deprecated", False),
+            "repeated": p.get("repeated", False),
         }
 
     params = meth["parameters"]
