@@ -310,14 +310,21 @@ def format_docstr(s, levels=1):
 
 
 
+def escape_builtin(name):
+    if hasattr(__builtins__, name):
+        name += "_"
+    return name
+
+
+
 def camel_case_to_python(camel, escape_builtins=True):
     """Convert a camelCase name into a snake_case name. Also prevent overriding
     some python builtin by appending an underscore."""
 
     newname = re.sub(r"([a-z])([A-Z]+)", r"\1_\2", camel).lower()
 
-    if escape_builtins and hasattr(__builtins__, newname):
-        newname += "_"
+    if escape_builtins:
+        newname = escape_builtin(newname)
     return newname
 
 
