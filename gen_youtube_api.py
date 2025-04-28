@@ -6,6 +6,7 @@ available in the JSON from the API. All the arguments required by the Youtube
 Data API are also required by the python methods. All the method names and
 argument names are translated to the PEP 8 recommended coding style."""
 
+import keyword
 import re
 import sys
 
@@ -311,7 +312,9 @@ def format_docstr(s, levels=1):
 
 
 def escape_builtin(name):
-    if hasattr(__builtins__, name):
+    """Prevent overriding python builtin by appending an underscore if necessary."""
+
+    if hasattr(__builtins__, name) or keyword.iskeyword(name) or keyword.issoftkeyword(name):
         name += "_"
     return name
 
