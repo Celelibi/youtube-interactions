@@ -198,8 +198,9 @@ def _add_argument(parser, param, required):
             raise ValueError(f"Can't parse repeated argument of type {param['type']}")
         action = "append"
 
-    parser.add_argument(n, action=action, dest=param["name"], required=required,
-                          deprecated=param["deprecated"], help=param["help"])
+    parser.add_argument(n, action=action, dest=param["name"],
+                        metavar=param["originalName"], required=required,
+                        deprecated=param["deprecated"], help=param["help"])
 
 
 
