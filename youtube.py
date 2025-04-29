@@ -9,6 +9,8 @@ documentation here:
 https://developers.google.com/youtube/v3/docs
 """
 
+import collections
+import itertools as it
 import logging
 import urllib
 
@@ -36,6 +38,93 @@ class APIError(Exception):
         super().__init__(msg)
         self.request = request
         self.response = response
+
+
+
+class YouTubeResponse(collections.UserDict):
+    def __init__(self, yt, req, data):
+        super().__init__(data)
+        self._yt = yt
+        self._req = req
+
+    def __getattr__(self, name):
+        try:
+            ret = self.data[name]
+        except KeyError as e:
+            raise AttributeError(f"response has no attribute {name}")
+
+        if isinstance(ret, dict):
+            return self._wrap(ret)
+        if isinstance(ret, list):
+            return [self._wrap(v) for v in ret]
+
+        return ret
+
+    def _wrap(self, data):
+        return wrap_result(self._yt, self._req, data)
+
+    def __str__(self):
+        pad = "\n    "
+        retval = ""
+        for k in sorted(self.data):
+            v = getattr(self, k)
+            retval += f"{k}:"
+
+            if isinstance(v, collections.abc.Generator):
+                v = it.islice(v, len(self.data[k]))
+
+                for e in v:
+                    retval += pad + "- "
+                    s = str(e)
+                    if "\n" in s:
+                        lines = s.splitlines()
+                        retval += lines[0]
+                        retval += "".join(pad + "  " + l for l in lines[1:])
+                    else:
+                        retval += s
+                retval += pad + "..."
+
+            elif isinstance(v, YouTubeResponse):
+                retval += "".join(pad + l for l in str(v).splitlines())
+            else:
+                retval += f" {v}"
+
+            retval += "\n"
+
+        return retval.removesuffix("\n")
+
+
+
+class YouTubeResponsePageinated(YouTubeResponse):
+    def __init__(self, yt, req, data):
+        super().__init__(yt, req, data)
+
+        if "pageInfo" not in data:
+            logging.warning("YouTubeResponse should only be used for paginated responses")
+            if "items" in data:
+                logging.error("Your code might not work properly if you try to access .items")
+
+        if "items" not in data:
+            logging.error("YouTube response is paginated for an attribute other than \"items\"")
+
+        # We won't need to wrap the future results
+        self._req["kwargs"]["wrap"] = False
+
+    @property
+    def items(self):
+        yield from (self._wrap(itm) for itm in self.data["items"])
+
+        while "nextPageToken" in self.data:
+            self._req["kwargs"]["params"]["pageToken"] = self.nextPageToken
+            self.data = self._yt.request(*self._req["args"], **self._req["kwargs"])
+            yield from (self._wrap(itm) for itm in self.data["items"])
+
+
+
+def wrap_result(yt, req, data):
+    if "pageInfo" in data:
+        return YouTubeResponsePageinated(yt, req, data)
+    return YouTubeResponse(yt, req, data)
 
 
 
@@ -104,7 +193,7 @@ class YouTube(generated_youtube_mixin.YouTubeMixin):
 
 
 
-    def request(self, method, url, *args, raise_=True, decode_json=True, **kwargs):
+    def request(self, method, url, *args, raise_=True, decode_json=True, wrap=True, **kwargs):
         """
         Perform an authenticated request.
 
@@ -113,6 +202,9 @@ class YouTube(generated_youtube_mixin.YouTubeMixin):
         Raise an exception for an error status code by default.
         Decode the JSON response by default.
         """
+
+        if wrap and not decode_json:
+            ValueError("Cannot wrap a result whose JSON isn't decoded")
 
         self._auth.pre_request_hook()
 
@@ -139,7 +231,18 @@ class YouTube(generated_youtube_mixin.YouTubeMixin):
                 raise APIError(msg, response=e.response, request=e.request) from e
 
         if decode_json:
-            return res.json()
+            res = res.json()
+            if wrap:
+                req = {
+                    "args": (method, url) + args,
+                    "kwargs": {
+                        "raise_": raise_,
+                        "decode_json": decode_json,
+                        "wrap": wrap,
+                        **kwargs
+                    }
+                }
+                res = wrap_result(self, req, res)
 
         return res
 
